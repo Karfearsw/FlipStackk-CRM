@@ -55,6 +55,7 @@ export default function SettingsPage() {
   const { data: session } = useSession();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
 
   const { data: user } = useQuery({
     queryKey: ["user"],
@@ -99,6 +100,23 @@ export default function SettingsPage() {
     onError: () => {
       toast({ title: "Error", description: "Failed to update password", variant: "destructive" });
     },
+  });
+
+  const uploadAvatarMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/user/avatar', { method: 'POST', body: fd });
+      if (!res.ok) throw new Error('Upload failed');
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: 'Avatar updated' });
+      queryClient.invalidateQueries({ queryKey: ['user'] });
+    },
+    onError: () => {
+      toast({ title: 'Error', description: 'Failed to update avatar', variant: 'destructive' });
+    }
   });
 
   return (
@@ -177,6 +195,35 @@ export default function SettingsPage() {
                     </Button>
                   </form>
                 </Form>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Avatar</CardTitle>
+                <CardDescription>Update your profile picture</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-4">
+                  <img
+                    src={`/uploads/user-${session?.user?.id}.jpg`}
+                    alt="Avatar"
+                    className="h-12 w-12 rounded-full object-cover"
+                    onError={(e)=>{(e.target as HTMLImageElement).style.display='none'}}
+                  />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e)=> setAvatarFile(e.target.files?.[0] || null)}
+                  />
+                  <Button
+                    type="button"
+                    disabled={!avatarFile || uploadAvatarMutation.isPending}
+                    onClick={()=> avatarFile && uploadAvatarMutation.mutate(avatarFile)}
+                  >
+                    {uploadAvatarMutation.isPending ? 'Uploading...' : 'Upload'}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

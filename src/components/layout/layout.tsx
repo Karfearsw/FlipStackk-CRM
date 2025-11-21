@@ -3,9 +3,9 @@
 import React, { useState } from "react";
 import { Sidebar } from "./sidebar";
 import { BottomNav } from "./bottom-nav";
-import { LiveTime } from "@/components/ui/live-time";
+import dynamic from "next/dynamic";
 import { ConnectionStatus } from "@/components/shared/connection-status";
-import { ActivityNotification } from "@/components/shared/activity-notification";
+import { NotificationCenter } from "@/components/communication/notification-center";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -13,6 +13,17 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      const saved = window.localStorage.getItem("sidebar:collapsed");
+      return saved === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  const LiveTimeClient = dynamic(() => import("@/components/ui/live-time").then(m => m.LiveTime), { ssr: false });
   
   const handleMenuToggle = () => {
     setSidebarOpen(!sidebarOpen);
@@ -20,7 +31,7 @@ export function Layout({ children }: LayoutProps) {
   
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-background">
-      <Sidebar open={sidebarOpen} onOpenChange={setSidebarOpen} />
+      <Sidebar open={sidebarOpen} onOpenChange={setSidebarOpen} collapsed={sidebarCollapsed} onCollapsedChange={(c)=>{setSidebarCollapsed(c); try{window.localStorage.setItem("sidebar:collapsed", String(c));}catch{}}} />
       
       {sidebarOpen && (
         <div 
@@ -30,13 +41,13 @@ export function Layout({ children }: LayoutProps) {
         />
       )}
       
-      <main className="main-content">
+      <main className={`main-content ${sidebarCollapsed ? "md:ml-[5rem]" : "md:ml-[16rem]"} sm:ml-0`}>
         <div className="page-container">
           <div className="content-container">
-            <div className="mb-4 flex justify-between items-center">
-              <LiveTime />
+            <div className="mb-2 flex justify-between items-center">
+              <LiveTimeClient />
               <div className="flex items-center gap-3">
-                <ActivityNotification />
+                <NotificationCenter />
                 <ConnectionStatus />
               </div>
             </div>

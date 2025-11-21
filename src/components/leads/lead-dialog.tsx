@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiGet, apiPost, apiPut } from "@/hooks/use-api";
+import { useApiMutation } from "@/hooks/use-api";
 
 import {
   Dialog,
@@ -36,23 +37,28 @@ import { Textarea } from "@/components/ui/textarea";
 
 const leadSchema = z.object({
   propertyAddress: z.string().min(1, "Property address is required"),
-  city: z.string().min(1, "City is required"),
-  state: z.string().min(1, "State is required"),
-  zip: z.string().min(1, "Zip code is required"),
-  ownerName: z.string().min(1, "Owner name is required"),
-  ownerPhone: z.string().optional(),
-  ownerEmail: z.string().email("Invalid email").optional().or(z.literal("")),
-  status: z.enum(["new", "contacted", "qualified", "unqualified", "closed"]),
-  propertyType: z.enum(["single-family", "multi-family", "condo", "commercial", "land"]),
-  source: z.enum(["cold-call", "direct-mail", "referral", "online", "other"]),
-  notes: z.string().optional(),
-  estimatedValue: z.string().optional(),
-  arv: z.string().optional(),
-  repairCost: z.string().optional(),
+  city: z.string().optional().default(""),
+  state: z.string().optional().default(""),
+  zip: z.string().optional().default(""),
+  ownerName: z.string().optional().default(""),
+  ownerPhone: z.string().optional().default(""),
+  ownerEmail: z.string().email("Invalid email").optional().or(z.literal("")).default(""),
+  status: z.enum(["new", "contacted", "qualified", "unqualified", "closed"]).default("new"),
+  propertyType: z.enum(["single-family", "multi-family", "condo", "commercial", "land"]).default("single-family"),
+  source: z.enum(["cold-call", "direct-mail", "referral", "online", "other"]).default("other"),
+  notes: z.string().optional().default(""),
+  estimatedValue: z.string().optional().default(""),
+  arv: z.string().optional().default(""),
+  repairCost: z.string().optional().default(""),
   assignedToUserId: z.number().optional(),
 });
 
 type LeadFormValues = z.infer<typeof leadSchema>;
+
+// Explicit type for form default values to ensure proper typing
+interface LeadFormDefaultValues extends Partial<LeadFormValues> {
+  propertyAddress: string;
+}
 
 interface LeadDialogProps {
   open: boolean;
@@ -64,14 +70,41 @@ interface LeadDialogProps {
 export function LeadDialog({ open, onOpenChange, lead, onSuccess }: LeadDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [smsText, setSmsText] = useState("");
+  const [discordText, setDiscordText] = useState("");
+  const discordMutation = useApiMutation(
+    (payload: { leadId: number; body: string }) => apiPost<any>("/api/communications/send", { type: "discord", ...payload }),
+    {
+      onSuccess: () => {
+        toast({ title: "Sent to Discord", description: "Message dispatched" });
+        setDiscordText("");
+        queryClient.invalidateQueries({ queryKey: ["communications", lead?.id] });
+      },
+      onError: () => {
+        toast({ title: "Discord failed", description: "Could not send message", variant: "destructive" });
+      },
+    }
+  );
+  const smsMutation = useApiMutation(
+    (payload: { leadId: number; to: string; body: string }) => apiPost<any>("/api/communications/send", { type: "sms", ...payload }),
+    {
+      onSuccess: () => {
+        toast({ title: "SMS sent", description: "Message dispatched" });
+        queryClient.invalidateQueries({ queryKey: ["communications", lead?.id] });
+      },
+      onError: () => {
+        toast({ title: "SMS failed", description: "Could not send message", variant: "destructive" });
+      },
+    }
+  );
 
   const { data: users = [] } = useQuery({
     queryKey: ["team"],
     queryFn: () => apiGet<any[]>("/api/team"),
   });
 
-  const form = useForm<LeadFormValues>({
-    resolver: zodResolver(leadSchema),
+  const form = useForm<LeadFormValues, any, LeadFormValues>({
+    resolver: zodResolver(leadSchema) as Resolver<LeadFormValues>,
     defaultValues: {
       propertyAddress: "",
       city: "",
@@ -87,7 +120,7 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: LeadDialogPr
       estimatedValue: "",
       arv: "",
       repairCost: "",
-    },
+    } as LeadFormValues,
   });
 
   useEffect(() => {
@@ -100,9 +133,9 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: LeadDialogPr
         ownerName: lead.ownerName || "",
         ownerPhone: lead.ownerPhone || "",
         ownerEmail: lead.ownerEmail || "",
-        status: lead.status || "new",
-        propertyType: lead.propertyType || "single-family",
-        source: lead.source || "other",
+        status: lead.status || "new" as const,
+        propertyType: lead.propertyType || "single-family" as const,
+        source: lead.source || "other" as const,
         notes: lead.notes || "",
         estimatedValue: lead.estimatedValue?.toString() || "",
         arv: lead.arv?.toString() || "",
@@ -118,9 +151,9 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: LeadDialogPr
         ownerName: "",
         ownerPhone: "",
         ownerEmail: "",
-        status: "new",
-        propertyType: "single-family",
-        source: "other",
+        status: "new" as const,
+        propertyType: "single-family" as const,
+        source: "other" as const,
         notes: "",
         estimatedValue: "",
         arv: "",
@@ -129,10 +162,17 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: LeadDialogPr
     }
   }, [lead, form]);
 
-  const mutation = useMutation({
-    mutationFn: async (data: LeadFormValues) => {
+  const mutation = useMutation<unknown, Error, LeadFormValues>({
+    mutationFn: async (data) => {
       const payload = {
         ...data,
+        city: data.city || "City pending",
+        state: data.state || "State pending",
+        zip: data.zip || "00000",
+        ownerName: data.ownerName || "Owner pending",
+        status: data.status || "new" as const,
+        propertyType: data.propertyType || "single-family" as const,
+        source: data.source || "other" as const,
         estimatedValue: data.estimatedValue ? Number(data.estimatedValue.replace(/\D/g, "")) : undefined,
         arv: data.arv ? Number(data.arv.replace(/\D/g, "")) : undefined,
         repairCost: data.repairCost ? Number(data.repairCost.replace(/\D/g, "")) : undefined,
@@ -177,8 +217,8 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: LeadDialogPr
           </DialogDescription>
         </DialogHeader>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -402,8 +442,8 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: LeadDialogPr
                   <FormItem>
                     <FormLabel>Assign To</FormLabel>
                     <Select
-                      onValueChange={(value) => field.onChange(value ? parseInt(value) : undefined)}
-                      value={field.value?.toString() || ""}
+                      onValueChange={(value) => field.onChange(value === 'none' ? undefined : parseInt(value))}
+                      value={field.value ? field.value.toString() : undefined}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -411,7 +451,7 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: LeadDialogPr
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">Unassigned</SelectItem>
+                        <SelectItem value="none">Unassigned</SelectItem>
                         {users.map((user: any) => (
                           <SelectItem key={user.id} value={user.id.toString()}>
                             {user.name}
@@ -441,6 +481,35 @@ export function LeadDialog({ open, onOpenChange, lead, onSuccess }: LeadDialogPr
                   </FormItem>
                 )}
               />
+              {lead?.ownerPhone && (
+                <div className="col-span-2 border rounded-md p-3 space-y-3">
+                  <div className="text-sm font-medium">Quick SMS</div>
+                  <Textarea placeholder="Type a message..." value={smsText} onChange={(e)=> setSmsText(e.target.value)} />
+                  <div className="flex justify-end">
+                    <Button type="button" variant="outline" onClick={()=>{
+                      const body = smsText?.trim();
+                      if (!body) { toast({ title: "Empty message", description: "Please enter text", variant: "destructive" }); return; }
+                      smsMutation.mutate({ leadId: lead.id, to: lead.ownerPhone, body });
+                    }}>
+                      Send SMS
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <div className="col-span-2 border rounded-md p-3 space-y-3">
+                <div className="text-sm font-medium">Quick Discord</div>
+                <Textarea placeholder="Type a message..." value={discordText} onChange={(e)=> setDiscordText(e.target.value)} />
+                <div className="flex justify-end">
+                  <Button type="button" variant="outline" onClick={()=>{
+                    const body = discordText?.trim();
+                    if (!body) { toast({ title: "Empty message", description: "Please enter text", variant: "destructive" }); return; }
+                    discordMutation.mutate({ leadId: lead.id, body });
+                  }}>
+                    Send Discord
+                  </Button>
+                </div>
+              </div>
             </div>
 
             <div className="flex justify-end gap-2">

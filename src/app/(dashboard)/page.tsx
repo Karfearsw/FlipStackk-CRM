@@ -5,8 +5,9 @@ import { SummaryMetrics } from "@/components/dashboard/summary-metrics";
 import { DealPipeline } from "@/components/dashboard/deal-pipeline";
 import { ActivityFeed } from "@/components/dashboard/activity-feed";
 import { UpcomingCalls } from "@/components/dashboard/upcoming-calls";
+import { Button } from "@/components/ui/button";
 import { useApiQuery } from "@/hooks/use-api";
-import { UserSearch, Phone, Calendar, FileText } from "lucide-react";
+import { UserSearch, Phone, Calendar, FileText, Plus, View } from "lucide-react";
 
 interface Lead {
   id: number;
@@ -108,6 +109,16 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
           <p className="text-muted-foreground">Overview of your real estate deals and activities</p>
+        </div>
+        <div className="flex gap-2 mt-4 md:mt-0">
+          <Button variant="outline" onClick={() => window.location.href = '/dashboard/custom'}>
+            <View className="h-4 w-4 mr-2" />
+            My Dashboards
+          </Button>
+          <Button variant="outline" onClick={() => window.location.href = '/dashboard-builder'}>
+            <Plus className="h-4 w-4 mr-2" />
+            Custom Dashboard
+          </Button>
         </div>
       </div>
       

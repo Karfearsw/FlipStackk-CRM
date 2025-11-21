@@ -18,6 +18,21 @@ export default function AnalyticsPage() {
     queryFn: () => apiGet<any[]>("/api/calls"),
   });
 
+  const { data: deals = [] } = useQuery({
+    queryKey: ["deals"],
+    queryFn: () => apiGet<any[]>("/api/deals"),
+  });
+
+  const dealsWon = deals.filter((d) => d.status === "closed_won");
+  const dealConversionRate = deals.length > 0 ? (dealsWon.length / deals.length) * 100 : 0;
+  const averageDealSize = deals.length > 0 ? deals.reduce((sum: number, d: any) => sum + Number(d.value), 0) / deals.length : 0;
+  const salesVelocity = deals.length > 0
+    ? deals.reduce((sum: number, d: any) => {
+        const prob = Number(d.probability) / 100;
+        return sum + Number(d.value) * prob;
+      }, 0)
+    : 0;
+
   const leadsByStatus = leads.reduce((acc: any, lead) => {
     acc[lead.status] = (acc[lead.status] || 0) + 1;
     return acc;
@@ -123,6 +138,39 @@ export default function AnalyticsPage() {
                 <Badge variant="secondary">{count}</Badge>
               </div>
             ))}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Deal Metrics */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Deal Conversion</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{dealConversionRate.toFixed(1)}%</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Average Deal Size</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">${averageDealSize.toFixed(0)}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Sales Velocity</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">${`${salesVelocity.toFixed(0)}`}</div>
           </CardContent>
         </Card>
       </div>

@@ -2,8 +2,12 @@ import { withAuth } from 'next-auth/middleware';
 import { NextResponse } from 'next/server';
 
 export default withAuth(
-  function middleware(req) {
-    return NextResponse.next();
+  function proxy(req) {
+    try {
+      return NextResponse.next();
+    } catch (e) {
+      return NextResponse.redirect(new URL('/auth', req.url));
+    }
   },
   {
     callbacks: {
@@ -25,6 +29,6 @@ export default withAuth(
 
 export const config = {
   matcher: [
-    '/((?!api/auth|_next/static|_next/image|favicon.ico|public).*)',
+    '/((?!api/auth|api/register|_next/static|_next/image|favicon.ico).*)',
   ],
 };

@@ -81,6 +81,33 @@ export async function PUT(
     if (body.latitude !== undefined) updateData.latitude = body.latitude ? String(Number(body.latitude)) : null;
     if (body.longitude !== undefined) updateData.longitude = body.longitude ? String(Number(body.longitude)) : null;
     
+    const existing = await storage.getLead(leadId);
+    if (!existing) {
+      return NextResponse.json(
+        { message: 'Lead not found' },
+        { status: 404 }
+      );
+    }
+
+    if (body.status !== undefined) {
+      const current = existing.status as string;
+      const next = body.status as string;
+      const allowed: Record<string, string[]> = {
+        new: ['contacted', 'unqualified'],
+        contacted: ['qualified', 'unqualified', 'new'],
+        qualified: ['closed', 'contacted'],
+        unqualified: ['contacted', 'new'],
+        closed: [],
+      };
+      const options = allowed[current] || [];
+      if (!options.includes(next) && current !== next) {
+        return NextResponse.json(
+          { message: `Invalid status transition from ${current} to ${next}` },
+          { status: 400 }
+        );
+      }
+    }
+
     const lead = await storage.updateLead(leadId, updateData);
     
     if (!lead) {
@@ -94,10 +121,12 @@ export async function PUT(
     
     await storage.createActivity({
       userId: userId,
-      actionType: 'update',
+      actionType: body.status !== undefined && existing.status !== body.status ? 'status_change' : 'update',
       targetType: 'lead',
       targetId: lead.id,
-      description: `Updated lead: ${lead.propertyAddress}`
+      description: body.status !== undefined && existing.status !== body.status
+        ? `Changed status: ${existing.status} → ${body.status}`
+        : `Updated lead: ${lead.propertyAddress}`
     });
     
     console.log('Lead updated successfully:', lead);

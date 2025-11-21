@@ -224,13 +224,14 @@ export default function CallsPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Lead</FormLabel>
-                      <Select onValueChange={(value) => field.onChange(parseInt(value))} value={field.value?.toString()}>
+                      <Select onValueChange={(value) => field.onChange(value === 'none' ? undefined : parseInt(value))} value={field.value ? field.value.toString() : undefined}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select a lead" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
+                          <SelectItem value="none">Select lead</SelectItem>
                           {leads.map((lead: any) => (
                             <SelectItem key={lead.id} value={lead.id.toString()}>
                               {lead.propertyAddress} - {lead.ownerName}
@@ -294,13 +295,14 @@ export default function CallsPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Lead</FormLabel>
-                      <Select onValueChange={(value) => field.onChange(parseInt(value))} value={field.value?.toString()}>
+                      <Select onValueChange={(value) => field.onChange(value === 'none' ? undefined : parseInt(value))} value={field.value ? field.value.toString() : undefined}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select a lead" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
+                          <SelectItem value="none">Select lead</SelectItem>
                           {leads.map((lead: any) => (
                             <SelectItem key={lead.id} value={lead.id.toString()}>
                               {lead.propertyAddress} - {lead.ownerName}

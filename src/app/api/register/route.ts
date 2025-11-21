@@ -22,6 +22,16 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    if (body.email) {
+      const existingEmailUser = await storage.getUserByEmail(body.email);
+      if (existingEmailUser) {
+        return NextResponse.json(
+          { message: 'Email already exists' },
+          { status: 400 }
+        );
+      }
+    }
     
     const validatedData = insertUserSchema.parse({
       ...body,
@@ -41,7 +51,32 @@ export async function POST(request: Request) {
       );
     }
     
-    console.error('Error in /api/register:', error);
+    const err: any = error as any;
+    if (err && err.code === '23505') {
+      const detail = typeof err.detail === 'string' ? err.detail : '';
+      const isEmailDup = detail.includes('email');
+      const isUsernameDup = detail.includes('username');
+      const message = isEmailDup
+        ? 'Email already exists'
+        : isUsernameDup
+        ? 'Username already exists'
+        : 'Duplicate value';
+      return NextResponse.json(
+        { message },
+        { status: 409 }
+      );
+    }
+    
+    // Enhanced error logging
+    console.error('Error in /api/register:', {
+      name: err?.name,
+      code: err?.code,
+      detail: err?.detail,
+      message: err?.message,
+      stack: err?.stack,
+      fullError: JSON.stringify(err, null, 2)
+    });
+    
     return NextResponse.json(
       { message: 'Failed to create user' },
       { status: 500 }

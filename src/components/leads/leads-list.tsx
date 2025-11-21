@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Pencil, Trash2, Phone, Mail, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,10 @@ import {
 import { LeadDialog } from "./lead-dialog";
 import { useApiMutation } from "@/hooks/use-api";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiGet, apiPost, apiPut } from "@/hooks/use-api";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useSession } from "next-auth/react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,6 +47,7 @@ interface LeadsListProps {
   leads: Lead[];
   isLoading: boolean;
   onRefetch: () => void;
+  onSortChange?: (column: string) => void;
 }
 
 const statusColors: Record<string, string> = {
@@ -53,10 +58,12 @@ const statusColors: Record<string, string> = {
   closed: "bg-gray-500",
 };
 
-export function LeadsList({ leads, isLoading, onRefetch }: LeadsListProps) {
+export function LeadsList({ leads, isLoading, onRefetch, onSortChange }: LeadsListProps) {
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [deletingLead, setDeletingLead] = useState<Lead | null>(null);
   const { toast } = useToast();
+  const { data: session } = useSession();
+  const queryClient = useQueryClient();
 
   const deleteMutation = useApiMutation(
     (id: number) => fetch(`/api/leads/${id}`, { method: "DELETE" }).then(r => r.ok ? r : Promise.reject(r)),
@@ -75,6 +82,68 @@ export function LeadsList({ leads, isLoading, onRefetch }: LeadsListProps) {
           description: "Failed to delete lead",
           variant: "destructive",
         });
+      },
+    }
+  );
+
+  const { data: team = [] } = useQuery({
+    queryKey: ["team"],
+    queryFn: () => apiGet<any[]>("/api/team"),
+    staleTime: 60000,
+  });
+
+  const currentUserId = session?.user?.id ? Number(session.user.id) : undefined;
+  const { data: myAssignments = [] } = useQuery({
+    queryKey: ["lead-assignments", currentUserId, "assigned"],
+    queryFn: () => currentUserId ? apiGet<any[]>(`/api/lead-assignments?userId=${currentUserId}&status=assigned`) : Promise.resolve([]),
+    enabled: !!currentUserId,
+    staleTime: 10000,
+  });
+
+  const assignmentsByLead: Record<number, any> = useMemo(() => {
+    const map: Record<number, any> = {};
+    for (const a of myAssignments) {
+      map[a.leadId] = a;
+    }
+    return map;
+  }, [myAssignments]);
+
+  const assignMutation = useApiMutation(
+    (payload: { leadId: number; assignedToUserId: number }) => apiPost<any>("/api/lead-assignments", payload),
+    {
+      onSuccess: () => {
+        toast({ title: "Success", description: "Lead assigned" });
+        queryClient.invalidateQueries({ queryKey: ["lead-assignments", currentUserId, "assigned"] });
+      },
+      onError: () => {
+        toast({ title: "Error", description: "Failed to assign lead", variant: "destructive" });
+      },
+    }
+  );
+
+  const acceptMutation = useApiMutation(
+    (assignmentId: number) => apiPut<any>(`/api/lead-assignments/${assignmentId}`, { status: "accepted" }),
+    {
+      onSuccess: () => {
+        toast({ title: "Accepted", description: "Assignment accepted" });
+        onRefetch();
+        queryClient.invalidateQueries({ queryKey: ["lead-assignments", currentUserId, "assigned"] });
+      },
+      onError: () => {
+        toast({ title: "Error", description: "Failed to accept assignment", variant: "destructive" });
+      },
+    }
+  );
+
+  const rejectMutation = useApiMutation(
+    (assignmentId: number) => apiPut<any>(`/api/lead-assignments/${assignmentId}`, { status: "rejected" }),
+    {
+      onSuccess: () => {
+        toast({ title: "Rejected", description: "Assignment rejected" });
+        queryClient.invalidateQueries({ queryKey: ["lead-assignments", currentUserId, "assigned"] });
+      },
+      onError: () => {
+        toast({ title: "Error", description: "Failed to reject assignment", variant: "destructive" });
       },
     }
   );
@@ -101,12 +170,20 @@ export function LeadsList({ leads, isLoading, onRefetch }: LeadsListProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Lead ID</TableHead>
-              <TableHead>Property Address</TableHead>
+              <TableHead className="cursor-pointer" onClick={()=>onSortChange?.("leadId")}>
+                Lead ID
+              </TableHead>
+              <TableHead className="cursor-pointer" onClick={()=>onSortChange?.("propertyAddress")}>
+                Property Address
+              </TableHead>
               <TableHead>Owner</TableHead>
               <TableHead>Contact</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>ARV</TableHead>
+              <TableHead className="cursor-pointer" onClick={()=>onSortChange?.("status")}>
+                Status
+              </TableHead>
+              <TableHead className="cursor-pointer" onClick={()=>onSortChange?.("arv")}>
+                ARV
+              </TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -140,7 +217,7 @@ export function LeadsList({ leads, isLoading, onRefetch }: LeadsListProps) {
                 <TableCell>
                   <Badge
                     variant="secondary"
-                    className={`${statusColors[lead.status]} text-white`}
+                    className={`${statusColors[lead.status] ?? "bg-gray-500"} text-white`}
                   >
                     {lead.status}
                   </Badge>
@@ -148,24 +225,40 @@ export function LeadsList({ leads, isLoading, onRefetch }: LeadsListProps) {
                 <TableCell>
                   {lead.arv ? `$${Number(lead.arv).toLocaleString()}` : "—"}
                 </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setEditingLead(lead)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setDeletingLead(lead)}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                </TableCell>
+              <TableCell className="text-right">
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setEditingLead(lead)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setDeletingLead(lead)}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                  <Select onValueChange={(v)=> assignMutation.mutate({ leadId: lead.id, assignedToUserId: Number(v) })}>
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue placeholder="Assign" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {team.map((u: any)=> (
+                        <SelectItem key={u.id} value={String(u.id)}>{u.name || u.username}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {assignmentsByLead[lead.id] && assignmentsByLead[lead.id].assignedToUserId === currentUserId && (
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={()=> acceptMutation.mutate(assignmentsByLead[lead.id].id)}>Accept</Button>
+                      <Button size="sm" variant="outline" onClick={()=> rejectMutation.mutate(assignmentsByLead[lead.id].id)}>Reject</Button>
+                    </div>
+                  )}
+                </div>
+              </TableCell>
               </TableRow>
             ))}
           </TableBody>

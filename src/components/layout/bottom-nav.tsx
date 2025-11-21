@@ -9,6 +9,7 @@ import {
   Menu,
   BarChart3,
   Calculator,
+  MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,7 @@ export function BottomNav({ onMenuToggle }: BottomNavProps) {
     { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
     { href: "/leads", icon: UserSearch, label: "Leads" },
     { href: "/calls", icon: Phone, label: "Calls" },
-    { href: "/calculator", icon: Calculator, label: "Calculator" },
+    { href: "/communication", icon: MessageCircle, label: "Messages" },
     { href: "/analytics", icon: BarChart3, label: "Analytics" },
   ];
   

@@ -51,13 +51,14 @@ export async function POST(request: Request) {
     const body = await request.json();
     console.log("Received scheduled call data:", body);
     
-    const preparedData = {
-      leadId: parseInt(body.leadId),
+    const preparedData: any = {
       assignedCallerId: parseInt(body.assignedCallerId),
       scheduledTime: new Date(body.scheduledTime),
       notes: body.notes || "",
       status: body.status || "pending"
     };
+    if (body.leadId) preparedData.leadId = parseInt(body.leadId);
+    if (body.dealId) preparedData.dealId = parseInt(body.dealId);
     
     console.log("Prepared data:", preparedData);
     
@@ -67,15 +68,25 @@ export async function POST(request: Request) {
     const scheduledCall = await storage.createScheduledCall(validatedData);
     console.log("Created scheduled call:", scheduledCall);
     
-    const lead = await storage.getLead(preparedData.leadId);
-    
-    await storage.createActivity({
-      userId: parseInt(session.user.id),
-      actionType: 'schedule',
-      targetType: 'call',
-      targetId: scheduledCall.id,
-      description: `Scheduled a call for lead: ${lead?.propertyAddress || 'Unknown'}`
-    });
+    if (preparedData.dealId) {
+      const deal = await storage.getDeal(preparedData.dealId);
+      await storage.createActivity({
+        userId: parseInt(session.user.id),
+        actionType: 'schedule',
+        targetType: 'deal',
+        targetId: preparedData.dealId,
+        description: `Scheduled a follow-up for deal: ${deal?.title || 'Unknown'}`
+      });
+    } else if (preparedData.leadId) {
+      const lead = await storage.getLead(preparedData.leadId);
+      await storage.createActivity({
+        userId: parseInt(session.user.id),
+        actionType: 'schedule',
+        targetType: 'call',
+        targetId: scheduledCall.id,
+        description: `Scheduled a call for lead: ${lead?.propertyAddress || 'Unknown'}`
+      });
+    }
     
     return NextResponse.json(scheduledCall, { status: 201 });
   } catch (error) {
