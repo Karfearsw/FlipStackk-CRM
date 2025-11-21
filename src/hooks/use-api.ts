@@ -19,6 +19,14 @@ async function fetchApi<T>(
   url: string,
   options?: RequestInit
 ): Promise<T> {
+  try {
+    fetch('/api/analytics/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: 'api_request_start', details: { url, method: options?.method || 'GET', ts: Date.now() } })
+    }).catch(() => {});
+  } catch {}
+
   const response = await fetch(url, {
     ...options,
     headers: {
@@ -40,6 +48,14 @@ async function fetchApi<T>(
     } catch {
       // Use default error message if response is not JSON
     }
+
+    try {
+      fetch('/api/analytics/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: 'api_request_error', details: { url, status: error.status, message: error.message, ts: Date.now() } })
+      }).catch(() => {});
+    } catch {}
 
     throw error;
   }

@@ -56,26 +56,29 @@ export function NotificationCenter({ className = '', onNotificationClick }: Noti
       if (filter === 'unread') params.append('unreadOnly', 'true');
       if (typeFilter !== 'all') params.append('type', typeFilter);
       
-      const response = await apiGet<{ notifications: Notification[] }>(`/api/notifications?${params}`);
-      setNotifications(response.notifications);
+      const response = await apiGet<{ notifications?: Notification[] }>(`/api/notifications?${params}`);
+      const list = Array.isArray(response.notifications) ? response.notifications : [];
+      setNotifications(list);
       
       // Calculate stats
-      const unread = response.notifications.filter(n => !n.isRead).length;
-      const byType = response.notifications.reduce((acc, n) => {
+      const unread = list.filter(n => !n.isRead).length;
+      const byType = list.reduce((acc, n) => {
         const typeKey = n.type || 'unknown';
         acc[typeKey] = (acc[typeKey] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
       
       setStats({
-        total: response.notifications.length,
+        total: list.length,
         unread,
         byType
       });
     } catch (error: any) {
-      const message = error?.message || 'Unable to fetch notifications';
-      const status = error?.status;
-      console.error('Failed to fetch notifications:', { message, status });
+      const message = typeof error === 'string' 
+        ? error 
+        : (error?.message ?? 'Unable to fetch notifications');
+      const status = (error as any)?.status ?? (error instanceof Response ? error.status : undefined);
+      console.error('Failed to fetch notifications:', { message, status, error });
       toast({
         title: 'Notifications Error',
         description: message,

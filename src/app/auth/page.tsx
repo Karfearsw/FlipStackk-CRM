@@ -62,12 +62,40 @@ export default function AuthPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   useEffect(() => {
     if (session) {
       router.push("/dashboard");
     }
   }, [session, router]);
+
+  useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      try {
+        fetch('/api/analytics/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event: 'console_error', details: { message: event.message, source: event.filename, line: event.lineno, col: event.colno, ts: Date.now() } })
+        }).catch(() => {});
+      } catch {}
+    };
+    const handleRejection = (event: PromiseRejectionEvent) => {
+      try {
+        fetch('/api/analytics/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event: 'unhandled_rejection', details: { reason: String(event.reason), ts: Date.now() } })
+        }).catch(() => {});
+      } catch {}
+    };
+    window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleRejection);
+    return () => {
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleRejection);
+    };
+  }, []);
 
   const loginForm = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -90,32 +118,65 @@ export default function AuthPage() {
 
   const onLoginSubmit = async (data: LoginFormValues) => {
     setIsLoading(true);
+    setLoginError(null);
     try {
+      try {
+        await fetch('/api/analytics/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event: 'auth_attempt', details: { username: data.username, ts: Date.now() } })
+        });
+      } catch {}
+
       const result = await signIn("credentials", {
         username: data.username,
         password: data.password,
         redirect: false,
+        callbackUrl: "/dashboard",
       });
 
       if (result?.error) {
+        setLoginError(result.error);
         toast({
           title: "Error",
           description: "Invalid username or password",
           variant: "destructive",
         });
+        try {
+          await fetch('/api/analytics/track', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ event: 'auth_error', details: { username: data.username, message: result.error, ts: Date.now() } })
+          });
+        } catch {}
       } else if (result?.ok) {
         toast({
           title: "Success",
           description: "Logged in successfully",
         });
+        try {
+          await fetch('/api/analytics/track', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ event: 'auth_success', details: { username: data.username, ts: Date.now() } })
+          });
+        } catch {}
         router.push("/dashboard");
       }
     } catch (error) {
+      setLoginError('Login failed');
       toast({
         title: "Error",
         description: "An error occurred during login",
         variant: "destructive",
       });
+      try {
+        await fetch('/api/analytics/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event: 'auth_exception', details: { message: String(error), ts: Date.now() } })
+        });
+      } catch {}
     } finally {
       setIsLoading(false);
     }
@@ -239,15 +300,15 @@ export default function AuthPage() {
               <TabsTrigger value="register">Register</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="login">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Sign In</CardTitle>
-                  <CardDescription>Enter your credentials to access your account</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Form {...loginForm}>
-                    <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-4">
+      <TabsContent value="login">
+        <Card>
+          <CardHeader>
+            <CardTitle>Sign In</CardTitle>
+            <CardDescription>Enter your credentials to access your account</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Form {...loginForm}>
+              <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-4">
                       <FormField
                         control={loginForm.control}
                         name="username"
@@ -274,23 +335,26 @@ export default function AuthPage() {
                           </FormItem>
                         )}
                       />
-                      <Button 
-                        type="submit" 
-                        className="w-full bg-primary hover:bg-primary/90"
-                        disabled={isLoading}
-                      >
-                        {isLoading ? "Signing in..." : "Sign In"}
-                      </Button>
-                    </form>
-                  </Form>
-                </CardContent>
-                <CardFooter className="flex justify-center">
-                  <Button variant="link" className="text-primary hover:text-primary/90">
-                    Forgot your password?
-                  </Button>
-                </CardFooter>
-              </Card>
-            </TabsContent>
+                <Button 
+                  type="submit" 
+                  className="w-full bg-primary hover:bg-primary/90"
+                  disabled={isLoading}
+                >
+                  {isLoading ? "Signing in..." : "Sign In"}
+                </Button>
+                {loginError && (
+                  <div className="text-destructive text-sm mt-2">{loginError}</div>
+                )}
+              </form>
+            </Form>
+          </CardContent>
+          <CardFooter className="flex justify-center">
+            <Button variant="link" className="text-primary hover:text-primary/90">
+              Forgot your password?
+            </Button>
+          </CardFooter>
+        </Card>
+      </TabsContent>
 
             <TabsContent value="register">
               <Card>
