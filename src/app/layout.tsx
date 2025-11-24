@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/toaster";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { SessionProvider } from "next-auth/react";
+import { MetricsProvider } from "@/components/providers/metrics-provider";
 
 export default function RootLayout({
   children,
@@ -26,6 +27,7 @@ export default function RootLayout({
             <ThemeProvider defaultTheme="light" storageKey="nextjs-crm-ui-theme">
               {children}
               <Toaster />
+              <MetricsProvider />
             </ThemeProvider>
           </QueryProvider>
         </SessionProvider>

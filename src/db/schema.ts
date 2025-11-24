@@ -1,21 +1,33 @@
-import { pgTable, text, serial, integer, timestamp, boolean, numeric, date } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, boolean, numeric, date, uniqueIndex } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // Users table
-export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
-  username: text("username").notNull().unique(),
-  email: text("email").notNull().unique(),
-  password: text("password").notNull(),
-  name: text("name"),
-  role: text("role", { enum: ["admin", "acquisitions", "caller", "investor"] }).default("caller"),
-  active: boolean("active").default(true),
-  deactivatedAt: timestamp("deactivated_at"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at"),
-});
+export const users = pgTable(
+  "users",
+  {
+    id: serial("id").primaryKey(),
+    username: text("username").notNull().unique(),
+    email: text("email").notNull().unique(),
+    password: text("password"),
+    name: text("name"),
+    role: text("role", { enum: ["admin", "acquisitions", "caller", "investor"] }).default("caller"),
+    authProvider: text("auth_provider", { enum: ["credentials", "linkedin", "facebook"] }).default("credentials"),
+    providerAccountId: text("provider_account_id"),
+    active: boolean("active").default(true),
+    deactivatedAt: timestamp("deactivated_at"),
+    oauthEmailVerifiedAt: timestamp("oauth_email_verified_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at"),
+  },
+  (table) => ({
+    usersProviderAccountUnique: uniqueIndex("users_provider_account_unique").on(
+      table.authProvider,
+      table.providerAccountId
+    ),
+  })
+);
 
 export const insertUserSchema = createInsertSchema(users);
 export type User = typeof users.$inferSelect;

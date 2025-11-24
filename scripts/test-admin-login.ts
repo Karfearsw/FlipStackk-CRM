@@ -40,6 +40,10 @@ async function testAdminLogin() {
     console.log(`   Role: ${user.role}`);
     
     console.log('🔐 Testing password verification...');
+    if (!user.password) {
+      console.log('⚠️ Admin user has no password set (OAuth-only account)');
+      return;
+    }
     const isValidPassword = await comparePasswords(testCredentials.password, user.password);
     
     if (isValidPassword) {

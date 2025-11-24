@@ -3,10 +3,26 @@ import { storage } from '@/lib/storage';
 import { hashPassword } from '@/lib/auth';
 import { insertUserSchema } from '@/db/schema';
 import { z } from 'zod';
+import { logError, logInfo } from '@/lib/logger';
+
+const rateLimit = new Map<string, { count: number; ts: number }>();
+const WINDOW_MS = 60_000;
+const MAX_REQ = 20;
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    const ip = (request.headers.get('x-forwarded-for') || '').split(',')[0] || 'unknown';
+    const now = Date.now();
+    const entry = rateLimit.get(ip);
+    if (!entry || now - entry.ts > WINDOW_MS) {
+      rateLimit.set(ip, { count: 1, ts: now });
+    } else {
+      entry.count += 1;
+      if (entry.count > MAX_REQ) {
+        return NextResponse.json({ message: 'Too many requests' }, { status: 429 });
+      }
+    }
     
     if (!body.username || !body.password) {
       return NextResponse.json(
@@ -39,6 +55,7 @@ export async function POST(request: Request) {
     });
     
     const user = await storage.createUser(validatedData);
+    logInfo('user_registered', { userId: user.id, username: user.username, email: user.email });
     
     const { password, ...userResponse } = user;
     
@@ -67,14 +84,12 @@ export async function POST(request: Request) {
       );
     }
     
-    // Enhanced error logging
-    console.error('Error in /api/register:', {
+    logError('register_failed', {
       name: err?.name,
       code: err?.code,
       detail: err?.detail,
       message: err?.message,
       stack: err?.stack,
-      fullError: JSON.stringify(err, null, 2)
     });
     
     return NextResponse.json(

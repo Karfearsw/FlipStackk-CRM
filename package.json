@@ -11,7 +11,8 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
     "db:push": "drizzle-kit push",
-    "discord:setup": "tsx scripts/setup-discord.ts"
+    "discord:setup": "tsx scripts/setup-discord.ts",
+    "backup:supabase": "tsx scripts/backup/backup-to-supabase-storage.ts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.1",
@@ -83,6 +84,7 @@
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
     "typescript": "^5",
-    "vitest": "^4.0.9"
+    "vitest": "^4.0.9",
+    "@playwright/test": "^1.49.0"
   }
 }

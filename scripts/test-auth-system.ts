@@ -23,8 +23,12 @@ async function testAuthEndpoints() {
     
     // Test 2: Verify password
     console.log('\n2️⃣ Testing password verification...');
-    const isPasswordValid = await comparePasswords('YourSecurePassword123!', adminUser.password);
-    console.log(`✅ Password verification: ${isPasswordValid ? 'PASSED' : 'FAILED'}`);
+    if (!adminUser.password) {
+      console.log('⚠️ Admin user has no password set');
+    } else {
+      const isPasswordValid = await comparePasswords('YourSecurePassword123!', adminUser.password);
+      console.log(`✅ Password verification: ${isPasswordValid ? 'PASSED' : 'FAILED'}`);
+    }
     
     // Test 3: Test registration endpoint (should fail due to duplicate)
     console.log('\n3️⃣ Testing registration endpoint (duplicate check)...');

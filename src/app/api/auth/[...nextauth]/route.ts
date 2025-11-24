@@ -1,5 +1,7 @@
 import NextAuth, { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
+import LinkedInProvider from 'next-auth/providers/linkedin';
+import FacebookProvider from 'next-auth/providers/facebook';
 import { db } from '@/lib/db';
 import { users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -28,6 +30,9 @@ export const authOptions: NextAuthOptions = {
           throw new Error('Invalid username or password');
         }
 
+        if (!user.password) {
+          throw new Error('Invalid username or password');
+        }
         const isValidPassword = await comparePasswords(
           credentials.password,
           user.password
@@ -46,12 +51,49 @@ export const authOptions: NextAuthOptions = {
         };
       },
     }),
+    LinkedInProvider({
+      clientId: process.env.LINKEDIN_CLIENT_ID!,
+      clientSecret: process.env.LINKEDIN_CLIENT_SECRET!,
+    }),
+    FacebookProvider({
+      clientId: process.env.FACEBOOK_CLIENT_ID!,
+      clientSecret: process.env.FACEBOOK_CLIENT_SECRET!,
+    }),
   ],
   session: {
     strategy: 'jwt',
     maxAge: 7 * 24 * 60 * 60,
   },
   callbacks: {
+    async signIn({ user, account, profile }) {
+      if (account && account.provider !== 'credentials') {
+        const email = user?.email || (profile as any)?.email || null;
+        const provider = account.provider;
+        const providerAccountId = account.providerAccountId;
+        if (!email) return false;
+        const existing = await db.select().from(users).where(eq(users.email, email)).limit(1);
+        if (existing.length === 0) {
+          const baseUsername = (email.split('@')[0] || 'user').replace(/[^a-zA-Z0-9_]/g, '');
+          const uniqueUsername = `${baseUsername}_${Math.random().toString(36).slice(2, 8)}`;
+          await db.insert(users).values({
+            email,
+            username: uniqueUsername,
+            name: user.name || uniqueUsername,
+            role: 'caller',
+            authProvider: provider as any,
+            providerAccountId,
+            active: true,
+            oauthEmailVerifiedAt: new Date(),
+          });
+        } else {
+          await db
+            .update(users)
+            .set({ authProvider: provider as any, providerAccountId })
+            .where(eq(users.email, email));
+        }
+      }
+      return true;
+    },
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
