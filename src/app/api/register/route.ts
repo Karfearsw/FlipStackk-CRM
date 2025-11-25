@@ -84,6 +84,30 @@ export async function POST(request: Request) {
       );
     }
     
+    const code = err?.code || '';
+    const msg = err?.message || '';
+    if (code === '42P01' || /relation .* does not exist/i.test(msg)) {
+      return NextResponse.json(
+        { message: 'Database schema not initialized' },
+        { status: 503 }
+      );
+    }
+    if (code === '28P01' || /password authentication failed/i.test(msg)) {
+      return NextResponse.json(
+        { message: 'Database credentials invalid' },
+        { status: 503 }
+      );
+    }
+    if (
+      code === '08001' ||
+      /ECONNREFUSED|ETIMEDOUT|ENOTFOUND|Connection terminated|connection timeout/i.test(msg)
+    ) {
+      return NextResponse.json(
+        { message: 'Database connection failed' },
+        { status: 503 }
+      );
+    }
+    
     logError('register_failed', {
       name: err?.name,
       code: err?.code,

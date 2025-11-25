@@ -26,7 +26,7 @@ function validateWhatsAppEnvironment(): { valid: boolean; missing: string[] } {
 
 // Initialize environment validation
 const envValidation = validateWhatsAppEnvironment();
-if (!envValidation.valid) {
+if (!envValidation.valid && process.env.FEATURE_WHATSAPP === 'true') {
   console.warn(`⚠️ WhatsApp environment not fully configured. Missing: ${envValidation.missing.join(', ')}`);
 }
 

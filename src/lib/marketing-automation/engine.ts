@@ -22,7 +22,7 @@ export class MarketingAutomationEngine {
   }
 
   private initializeProviders() {
-    const whatsappEnabled = process.env.WHATSAPP_ENABLED === 'true';
+    const whatsappEnabled = process.env.FEATURE_WHATSAPP === 'true' && process.env.WHATSAPP_ENABLED === 'true';
     const requiredWhatsAppEnv = [
       'WHATSAPP_PHONE_NUMBER_ID',
       'WHATSAPP_BUSINESS_ACCOUNT_ID',

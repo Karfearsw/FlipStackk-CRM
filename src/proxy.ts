@@ -47,6 +47,7 @@ export default withAuth(
 
 export const config = {
   matcher: [
-    '/((?!api/auth|api/register|_next/static|_next/image|favicon.ico).*)',
+    // Exclude health endpoint from auth & processing to allow diagnostics without session
+    '/((?!api/auth|api/register|api/health|_next/static|_next/image|favicon.ico).*)',
   ],
 };

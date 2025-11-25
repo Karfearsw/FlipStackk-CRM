@@ -12,6 +12,7 @@
     "test:coverage": "vitest --coverage",
     "db:push": "drizzle-kit push",
     "discord:setup": "tsx scripts/setup-discord.ts",
+    "db:migrate:sql": "tsx scripts/run-sql-migration.ts",
     "backup:supabase": "tsx scripts/backup/backup-to-supabase-storage.ts"
   },
   "dependencies": {
